@@ -149,6 +149,6 @@ policy - the two custom policies are clearly namespaced by name and by
 
 ## Secrets
 
-No secret values are committed. See [`docs/CREDENTIALS.md`](docs/CREDENTIALS.md)
-for a log of which tokens have been used against which Central instance and
-their expiration dates. `.env` is gitignored from this repo's first commit.
+No secret values, hostnames, or token identifiers are committed. See
+[`docs/CREDENTIALS.md`](docs/CREDENTIALS.md) for what token you need and how
+it's handled. `.env` is gitignored from this repo's first commit.

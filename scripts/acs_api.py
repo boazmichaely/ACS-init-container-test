@@ -127,42 +127,6 @@ def cmd_violations(args):
     print(json.dumps(out, indent=2))
 
 
-def cmd_deployments(args):
-    status, body = _request(
-        "GET", "/v1/deployments",
-        query={"query": f"Namespace:{args.namespace}", "pagination.limit": "200"},
-    )
-    if status != 200:
-        sys.exit(f"ERROR listing deployments: {status} {body}")
-    out = []
-    for d in body.get("deployments", []):
-        out.append({
-            "name": d.get("name"),
-            "id": d.get("id"),
-            "containers": [
-                {
-                    "name": c.get("name"),
-                    "image": (c.get("image") or {}).get("name"),
-                }
-                for c in d.get("containers", [])
-            ],
-        })
-    print(json.dumps(out, indent=2))
-
-
-def cmd_image_vulns(args):
-    status, body = _request("GET", f"/v1/images", query={"query": f"Image:{args.image}"})
-    if status != 200:
-        sys.exit(f"ERROR fetching image '{args.image}': {status} {body}")
-    imgs = body.get("images", [])
-    if not imgs:
-        print(json.dumps({"image": args.image, "found": False}))
-        return
-    img = imgs[0]
-    summary = img.get("vulnerabilityCounts") or img.get("scan", {}).get("summary")
-    print(json.dumps({"image": args.image, "found": True, "summary": summary}, indent=2))
-
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -184,14 +148,6 @@ def main():
     p = sub.add_parser("violations")
     p.add_argument("--namespace", required=True)
     p.set_defaults(func=cmd_violations)
-
-    p = sub.add_parser("deployments")
-    p.add_argument("--namespace", required=True)
-    p.set_defaults(func=cmd_deployments)
-
-    p = sub.add_parser("image-vulns")
-    p.add_argument("--image", required=True)
-    p.set_defaults(func=cmd_image_vulns)
 
     args = ap.parse_args()
     args.func(args)
