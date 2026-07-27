@@ -25,6 +25,59 @@ rarely rebuilt, and distroless images omit build timestamps entirely for
 reproducible builds (shows as a 1970/0001 date, which is expected, not a
 bug).
 
+## Deployment plan
+
+Running `./scripts/setup.sh` creates, in a dedicated `acs-init-container-test`
+namespace:
+
+- **4 Deployments** (`clean-app`, `dirty-app`, `blue-app`, `red-app`), each
+  with exactly one init container (the type under test, per the table above)
+  and one `main` placeholder container.
+- **`privileged` SCC** granted to the namespace's `default` service account -
+  required for Blue/Red's `privileged: true` init container.
+- **2 custom Build/Deploy policies**, scoped to this namespace only (see
+  below).
+
+## Policies
+
+- **`EAP-Init-Test: Privileged Container (Blue/Red)`** - fires on any
+  privileged container, main or init, in this namespace. Validates that
+  Build/Deploy policy evaluation reaches init containers at all, and that it
+  correctly attributes the violation to the specific init container by name.
+- **`EAP-Init-Test: Fixable Important+ CVE (Dirty/Red)`** - fires on any
+  container image, main or init, in this namespace with a fixable CVE at
+  CVSS >= 7. Validates that image vulnerability scanning attributes CVE
+  findings to init containers specifically, not just to the pod as a whole.
+
+## Expected results
+
+If init container security coverage is fully supported on the Central/Sensor
+version under test:
+
+- Central's Configuration Management `Container Type: INIT` filter returns
+  all 4 deployments.
+- `GET /v1/deployments/{id}` for any of the 4 apps lists both containers,
+  with `"type": "INIT"` on the init container.
+- Both custom policies fire, each attributed to the specific init container
+  by name (e.g. `Container 'red-init' is privileged`):
+  - `blue-app` and `red-app` trigger the Privileged Container policy.
+  - `dirty-app` and `red-app` trigger the Fixable CVE policy.
+  - `clean-app` and `blue-app` do **not** trigger the Fixable CVE policy -
+    their init image has no fixable Critical/Important CVEs.
+- Enabling `FAIL_DEPLOYMENT_CREATE_ENFORCEMENT` on the privileged-container
+  policy and recreating the `red-app` pod blocks pod creation.
+
+`roxctl image scan`/`roxctl image check` run directly against an image
+(independent of any deployment) always returns accurate CVE data regardless
+of the above - that path doesn't depend on deployment-level attribution.
+
+If any deployment-level check above doesn't hold (filter returns 0, the
+container list omits the init container, a policy doesn't fire, or
+enforcement doesn't block), that specific capability isn't yet supported on
+the Central/Sensor version under test. `./scripts/test.sh` walks through all
+of these checks in order - see [`docs/TESTING.md`](docs/TESTING.md) for
+exactly what each step does.
+
 ## What's in here
 
 ```
@@ -56,14 +109,10 @@ Anything missing from `.env`/the environment is prompted for interactively
 (the token prompt is hidden input). **Nothing here reads a token from a
 command-line argument**, so it never ends up in shell history or `ps` output.
 
-`setup.sh` creates the `acs-init-container-test` namespace, grants the
-`default` service account the `privileged` SCC (needed for the Blue/Red init
-containers), applies the 4 Deployments, and creates two demo Build/Deploy
-policies scoped to that namespace only: `EAP-Init-Test: Privileged Container
-(Blue/Red)` and `EAP-Init-Test: Fixable Important+ CVE (Dirty/Red)`.
-
-Open Central and browse to the `acs-init-container-test` namespace to explore
-the four deployments, their images, and any violations directly in the UI.
+See [Deployment plan](#deployment-plan) below for exactly what `setup.sh`
+creates. Once it's done, open Central and browse to the
+`acs-init-container-test` namespace to explore the four deployments, their
+images, and any violations directly in the UI.
 
 ## Testing (bonus)
 
