@@ -21,8 +21,49 @@ mkdir -p "$RESULTS_DIR"
 REPORT="$RESULTS_DIR/report.md"
 : > "$REPORT"
 
-log() { echo "$@" | tee -a "$REPORT"; }
-section() { log ""; log "## $1"; log ""; }
+# Colors for the terminal only - the report file always stays plain text.
+# Script narration is cyan, section banners are bold magenta, raw command
+# output (oc/roxctl/API responses) is left uncolored so it visually stands
+# apart from the script's own commentary. Disabled for non-tty output or
+# when NO_COLOR is set.
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  C_TEXT=$'\033[0;36m'    # cyan - script narration
+  C_BANNER=$'\033[1;35m'  # bold magenta - section banners
+  C_OK=$'\033[1;32m'      # bold green - expected/success result
+  C_BAD=$'\033[1;31m'     # bold red - unexpected/failure result
+  C_RESET=$'\033[0m'
+else
+  C_TEXT=""; C_BANNER=""; C_OK=""; C_BAD=""; C_RESET=""
+fi
+
+# Script narration: plain in the report file, colored on the terminal.
+log() {
+  echo "$@" >> "$REPORT"
+  echo "${C_TEXT}$*${C_RESET}"
+}
+
+# Section banner: makes the start of a new test step obvious on the terminal.
+section() {
+  {
+    echo ""
+    echo "## $1"
+    echo ""
+  } >> "$REPORT"
+  echo ""
+  echo "${C_BANNER}────────────────────────────────────────────────────────${C_RESET}"
+  echo "${C_BANNER}  $1${C_RESET}"
+  echo "${C_BANNER}────────────────────────────────────────────────────────${C_RESET}"
+  echo ""
+}
+
+# Highlighted one-line result: plain in the report file, bold green/red on
+# the terminal depending on whether the outcome was the expected one.
+result() {
+  local color=$C_OK
+  [[ "${2:-ok}" == "bad" ]] && color=$C_BAD
+  echo "$1" >> "$REPORT"
+  echo "${color}$1${C_RESET}"
+}
 
 log "# ACS Init Container Test Report"
 log ""
@@ -47,16 +88,7 @@ if [[ -n "$BLUE_ID" ]]; then
   log "(Look for both 'main' and 'blue-init' here - that confirms Sensor is reporting init containers to Central.)"
 fi
 
-section "2. Init container image scanning (Clean vs Dirty)"
-log "roxctl image scan against the Dirty init image (gcr.io/distroless/python3-debian12:debug-nonroot):"
-roxctl image scan -i gcr.io/distroless/python3-debian12:debug-nonroot -o json --compact-output 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get("result",d).get("summary"), indent=2))' | tee -a "$REPORT"
-log ""
-log "roxctl image scan against the Clean init image (gcr.io/distroless/base-debian12:debug-nonroot):"
-roxctl image scan -i gcr.io/distroless/base-debian12:debug-nonroot -o json --compact-output 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get("result",d).get("summary"), indent=2))' | tee -a "$REPORT"
-log ""
-log "(Ad hoc roxctl image scan of an image works independently of deployment attribution - it always reflects image content directly.)"
-
-section "3. Policy behavior (Blue / Red)"
+section "2. Policy behavior (Blue / Red)"
 log "Live violations for this namespace (from /v1/alerts):"
 python3 scripts/acs_api.py violations --namespace "${TEST_NAMESPACE}" | tee -a "$REPORT"
 log ""
@@ -68,38 +100,29 @@ RED_HIT=$(python3 scripts/acs_api.py violations --namespace "${TEST_NAMESPACE}" 
 log "Custom 'EAP-Init-Test: Privileged Container' fired on blue-app: ${BLUE_HIT}"
 log "Custom 'EAP-Init-Test: Privileged Container' fired on red-app: ${RED_HIT}"
 
-section "4. Pipeline (roxctl image check against Dirty)"
-log "roxctl image check against the Dirty init image (expect Important+ CVE findings, non-zero exit if a BUILD-breaking policy matches):"
-roxctl image check -i gcr.io/distroless/python3-debian12:debug-nonroot -o table --categories "Vulnerability Management" 2>&1 | tail -n 5 | tee -a "$REPORT"
-IMAGE_CHECK_EXIT="${PIPESTATUS[0]}"
-log "(roxctl image check exit code: ${IMAGE_CHECK_EXIT} - non-zero means at least one BUILD-breaking policy matched, i.e. the pipeline would fail the build)"
-
-section "5. Admission control (Red init container)"
-log "Temporarily enabling FAIL_DEPLOYMENT_CREATE_ENFORCEMENT on the custom privileged-container policy, then deleting and redeploying red-app from scratch..."
+section "3. Admission control (Red init container)"
+log "Enabling enforcement on the custom privileged-container policy..."
 python3 scripts/acs_api.py set-enforcement "EAP-Init-Test: Privileged Container (Blue/Red)" --on | tee -a "$REPORT"
-sleep 10
+sleep 15  # allow the setting to propagate from Central to the admission controller
 
-log "Deleting red-app entirely (Deployment + pods)..."
-oc delete deployment red-app -n "${TEST_NAMESPACE}" --wait=true >/dev/null
+log ""
+log "Deleting red-app..."
+oc delete deployment red-app -n "${TEST_NAMESPACE}" --wait=true | tee -a "$REPORT"
 
-log "Re-applying manifests/04-red.yaml with enforcement ON - expect this apply to be rejected by the admission webhook if enforcement reaches init containers:"
-APPLY_OUTPUT=$(oc apply -f manifests/04-red.yaml 2>&1)
-APPLY_EXIT=$?
-echo "$APPLY_OUTPUT" | tee -a "$REPORT"
-if [[ $APPLY_EXIT -ne 0 ]]; then
-  log ""
-  log "BLOCKED: 'oc apply' was rejected (exit code ${APPLY_EXIT}) - admission control stopped the deployment before it was created."
-else
-  log ""
-  log "NOT BLOCKED: 'oc apply' succeeded - the Deployment (and its privileged init container) was created despite enforcement being enabled."
-fi
+log ""
+log "Redeploying red-app - expect this to be rejected by the admission webhook:"
+oc apply -f manifests/04-red.yaml 2>&1 | tee -a "$REPORT"
+APPLY_EXIT="${PIPESTATUS[0]}"
 
 python3 scripts/acs_api.py set-enforcement "EAP-Init-Test: Privileged Container (Blue/Red)" --off | tee -a "$REPORT"
 
+log ""
 if [[ $APPLY_EXIT -ne 0 ]]; then
-  log ""
-  log "Re-applying manifests/04-red.yaml now that enforcement is back off, to restore red-app..."
+  result "BLOCKED as expected."
+  log "Restoring red-app now that enforcement is off..."
   oc apply -f manifests/04-red.yaml | tee -a "$REPORT"
+else
+  result "NOT BLOCKED - the deployment was created despite enforcement being enabled." bad
 fi
 oc rollout status deployment/red-app -n "${TEST_NAMESPACE}" --timeout=60s | tee -a "$REPORT"
 

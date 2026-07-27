@@ -1,29 +1,26 @@
 # ACS Init Container Test
 
-A ready-to-run demo of the four init-container "types" used to validate RHACS
-**init container security coverage** (image scanning + Build/Deploy policy
-evaluation of init containers): Clean, Dirty, Blue, and Red.
+**Repo:** https://github.com/boazmichaely/ACS-init-container-test
 
-| Type | Meaning | Image | Config |
+Kubernetes init containers run and finish before an app's main container
+starts - config pulls, migrations, permission fixes, sysctl tuning. RHACS is
+adding the ability to scan and enforce policy on init containers, not just
+main containers. This repo checks that it actually works: does image
+scanning find CVEs inside an init container? Does a policy fire because of
+something an init container does? Can admission control block a bad
+deployment because of its init container, before it ever starts?
+
+Four tiny demo apps answer those questions, one at a time.
+
+| App | Init container has fixable CVEs? | Init container is privileged? | What it proves |
 |---|---|---|---|
-| **Clean** | No fixable Critical/Important CVEs, no policy violations | `gcr.io/distroless/base-debian12:debug-nonroot` | hardened (non-root, drop ALL caps, no priv-escalation) |
-| **Dirty** | Has real CVEs, but well-behaved config | `gcr.io/distroless/python3-debian12:debug-nonroot` | same hardened config as Clean |
-| **Blue** | Violates a policy doing what it's *supposed* to do (noise) | same clean image as above | `privileged: true`, mimics the common Elasticsearch/ECK `vm.max_map_count` sysctl-tuning init container pattern |
-| **Red** | Violates a policy because it *misbehaves* (true positive) | `gcr.io/distroless/nodejs18-debian12:debug-nonroot` (real CVEs) | `privileged: true` with **no** legitimate justification |
+| `clean-app` | No | No | Baseline - a well-behaved init container should raise zero findings. |
+| `dirty-app` | Yes | No | Image scanning finds CVEs inside the init container and attributes them to it, not just the pod. |
+| `blue-app` | No | Yes | Policy evaluation catches a privileged init container even when it's a legitimate, common pattern (e.g. the sysctl tuning many Elasticsearch deployments run). |
+| `red-app` | Yes | Yes | Same as `blue-app`, but with no legitimate excuse - and admission control can actually block it. |
 
-All four types are built from public images plus plain Kubernetes YAML
-(`securityContext`, image tag choice) - no custom image builds required.
-Every image is a Google distroless variant: non-root by default, no package
-manager at all (so no "package manager in image" findings for any of the
-four), and Dirty/Red's language-runtime variants still carry real, fixable
-Critical/Important CVEs in their bundled runtime and glibc. Each
-`Deployment`'s `main` container is a `registry.k8s.io/pause:3.9` keep-alive
-placeholder; it's not part of the story, just there so the pod has a running
-main container alongside the init container being tested. The one
-irreducible finding across all four apps is "90-Day Image Age" - `pause` is
-rarely rebuilt, and distroless images omit build timestamps entirely for
-reproducible builds (shows as a 1970/0001 date, which is expected, not a
-bug).
+All four are plain public images plus Kubernetes YAML - no custom image
+builds.
 
 ## Deployment plan
 
@@ -31,10 +28,10 @@ Running `./scripts/setup.sh` creates, in a dedicated `acs-init-container-test`
 namespace:
 
 - **4 Deployments** (`clean-app`, `dirty-app`, `blue-app`, `red-app`), each
-  with exactly one init container (the type under test, per the table above)
-  and one `main` placeholder container.
+  with one init container (per the table above) and one `main` placeholder
+  container.
 - **`privileged` SCC** granted to the namespace's `default` service account -
-  required for Blue/Red's `privileged: true` init container.
+  required for `blue-app`/`red-app`'s privileged init container.
 - **2 custom Build/Deploy policies**, scoped to this namespace only (see
   below).
 
@@ -42,44 +39,37 @@ namespace:
 
 - **`EAP-Init-Test: Privileged Container (Blue/Red)`** - fires on any
   privileged container, main or init, in this namespace. Validates that
-  Build/Deploy policy evaluation reaches init containers at all, and that it
-  correctly attributes the violation to the specific init container by name.
+  Build/Deploy policy evaluation reaches init containers, and attributes the
+  violation to the specific init container by name.
 - **`EAP-Init-Test: Fixable Important+ CVE (Dirty/Red)`** - fires on any
   container image, main or init, in this namespace with a fixable CVE at
-  CVSS >= 7. Validates that image vulnerability scanning attributes CVE
-  findings to init containers specifically, not just to the pod as a whole.
+  CVSS >= 7. Validates that vulnerability scanning attributes CVE findings
+  to init containers specifically.
 
 ## Expected results
 
-If init container security coverage is fully supported on the Central/Sensor
-version under test:
+If init container coverage is fully working on the Central/Sensor version
+under test:
 
 - Central's Configuration Management `Container Type: INIT` filter returns
   all 4 deployments.
 - `GET /v1/deployments/{id}` for any of the 4 apps lists both containers,
   with `"type": "INIT"` on the init container.
 - Both custom policies fire, each attributed to the specific init container
-  by name (e.g. `Container 'red-init' is privileged`):
-  - `blue-app` and `red-app` trigger the Privileged Container policy.
-  - `dirty-app` and `red-app` trigger the Fixable CVE policy.
-  - `clean-app` and `blue-app` do **not** trigger the Fixable CVE policy -
-    their init image has no fixable Critical/Important CVEs.
-- With `FAIL_DEPLOYMENT_CREATE_ENFORCEMENT` enabled on the privileged-container
-  policy, deleting `red-app` and re-applying its manifest from scratch gets
-  the `oc apply` itself rejected by the admission webhook - the same
-  experience a user would get trying to deploy a non-compliant workload for
-  the first time.
+  by name (e.g. `Container 'red-init' is privileged`), matching the table
+  above (`blue-app`/`red-app` trigger the privileged-container policy;
+  `dirty-app`/`red-app` trigger the CVE policy).
+- With enforcement enabled on the privileged-container policy, deleting
+  `red-app` and re-applying its manifest gets the `oc apply` itself rejected
+  by the admission webhook - the same experience a user would get trying to
+  deploy a non-compliant workload for the first time. See
+  [`docs/TESTING.md`](docs/TESTING.md) for the enforcement actions this
+  requires.
 
-`roxctl image scan`/`roxctl image check` run directly against an image
-(independent of any deployment) always returns accurate CVE data regardless
-of the above - that path doesn't depend on deployment-level attribution.
-
-If any deployment-level check above doesn't hold (filter returns 0, the
-container list omits the init container, a policy doesn't fire, or
-enforcement doesn't block), that specific capability isn't yet supported on
-the Central/Sensor version under test. `./scripts/test.sh` walks through all
-of these checks in order - see [`docs/TESTING.md`](docs/TESTING.md) for
-exactly what each step does.
+If any check above doesn't hold, that capability isn't yet supported on the
+Central/Sensor version under test. (You'll also see a `90-Day Image Age`
+finding on every app - that's just the base/placeholder images being old,
+unrelated to init containers.)
 
 ## What's in here
 
@@ -112,7 +102,7 @@ Anything missing from `.env`/the environment is prompted for interactively
 (the token prompt is hidden input). **Nothing here reads a token from a
 command-line argument**, so it never ends up in shell history or `ps` output.
 
-See [Deployment plan](#deployment-plan) below for exactly what `setup.sh`
+See [Deployment plan](#deployment-plan) above for exactly what `setup.sh`
 creates. Once it's done, open Central and browse to the
 `acs-init-container-test` namespace to explore the four deployments, their
 images, and any violations directly in the UI.
@@ -123,12 +113,28 @@ images, and any violations directly in the UI.
 ./scripts/test.sh
 ```
 
-Walks through the init-container test workflow using `roxctl` and the
-Central REST API - Configuration Management filtering, image scanning,
-policy evaluation, pipeline checks (`roxctl image check`), and admission
-control - and saves a report to `results/report.md` (gitignored). See
-[`docs/TESTING.md`](docs/TESTING.md) for what each step checks and how to
-read the output.
+Runs three checks against the deployments `setup.sh` created, using `roxctl`
+and the Central REST API. Saves a full report to `results/report.md`
+(gitignored). It's read-only except for a short window in step 3, where it
+toggles enforcement on one custom policy and turns it back off before
+exiting.
+
+1. **Configuration Management.** Queries `/v1/deployments` with a
+   `Container Type: INIT` filter and confirms all 4 apps match. Also fetches
+   `blue-app`'s full container list to show both its `main` and `blue-init`
+   containers, with `blue-init` correctly typed as `INIT`.
+2. **Policy behavior.** Queries `/v1/alerts` for the namespace and checks
+   that the `Privileged Container` policy fired on `blue-app` and `red-app`.
+   Also runs `roxctl deployment check` against `manifests/04-red.yaml` to
+   show the same violations from the CLI side.
+3. **Admission control.** Enables enforcement on the privileged-container
+   policy, deletes the `red-app` Deployment, then re-applies its manifest
+   and checks whether `oc apply` itself gets rejected by the admission
+   webhook. Enforcement is turned back off afterward, and `red-app` is
+   restored if the redeploy was blocked.
+
+See [`docs/TESTING.md`](docs/TESTING.md) for the enforcement-action detail
+behind step 3.
 
 ## Cleanup
 

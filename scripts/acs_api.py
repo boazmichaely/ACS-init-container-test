@@ -97,7 +97,12 @@ def cmd_set_enforcement(args):
     status, existing = _request("GET", f"/v1/policies/{summary['id']}")
     if status != 200:
         sys.exit(f"ERROR fetching full policy '{args.name}': {status} {existing}")
-    existing["enforcementActions"] = ["FAIL_DEPLOYMENT_CREATE_ENFORCEMENT"] if args.on else []
+    # A DEPLOY-stage policy only reaches the admission controller if both of these
+    # enforcement actions are set - this mirrors what the Central UI's "Enforce"
+    # toggle sends, not the more obviously-named FAIL_DEPLOYMENT_CREATE_ENFORCEMENT.
+    existing["enforcementActions"] = (
+        ["SCALE_TO_ZERO_ENFORCEMENT", "UNSATISFIABLE_NODE_CONSTRAINT_ENFORCEMENT"] if args.on else []
+    )
     status, body = _request("PUT", f"/v1/policies/{existing['id']}", existing)
     if status not in (200, 201):
         sys.exit(f"ERROR updating enforcement on '{args.name}': {status} {json.dumps(body)}")
