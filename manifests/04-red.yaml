@@ -1,11 +1,12 @@
 # RED: init container violates a Build/Deploy policy because it MISBEHAVES.
-# Image is old/EOL (registry.access.redhat.com/ubi8/nodejs-14:1, unpatched
-# since 2023, hundreds of real fixable CVEs incl. Important-severity) AND is
-# configured privileged: true with no legitimate reason (unlike Blue, there
-# is no operational task here that requires it - it is just an unnecessarily
-# over-privileged, unpatched container). This S2I image bakes in a non-root
-# user (1001) despite its age, so it won't add a root-user finding on top of
-# the CVE/privileged findings. This is the "true positive" case: both the
+# Image carries real, fixable CVEs (gcr.io/distroless/nodejs18-debian12:
+# debug-nonroot - Critical/Important CVEs in its bundled Node.js runtime and
+# glibc) AND is configured privileged: true with no legitimate reason
+# (unlike Blue, there is no operational task here that requires it - it is
+# just an unnecessarily over-privileged container running vulnerable code).
+# Distroless has no package manager and bakes in a non-root user (65532), so
+# the only findings are the CVE and privileged ones - no root-user or
+# package-manager noise on top. This is the "true positive" case: both the
 # image-CVE-based policy and the configuration-based policy should fire, and
 # both firings should be considered actionable.
 apiVersion: apps/v1
@@ -32,9 +33,9 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: red-init
-          image: registry.access.redhat.com/ubi8/nodejs-14:1
+          image: gcr.io/distroless/nodejs18-debian12:debug-nonroot
           command:
-            - sh
+            - /busybox/sh
             - -c
             - |
               echo 'red-init: unpatched image with known CVEs, running privileged with no legitimate justification'

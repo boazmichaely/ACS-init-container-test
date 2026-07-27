@@ -7,21 +7,23 @@ evaluation of init containers): Clean, Dirty, Blue, and Red.
 | Type | Meaning | Image | Config |
 |---|---|---|---|
 | **Clean** | No fixable Critical/Important CVEs, no policy violations | `gcr.io/distroless/base-debian12:debug-nonroot` | hardened (non-root, drop ALL caps, no priv-escalation) |
-| **Dirty** | Has real CVEs, but well-behaved config | `registry.access.redhat.com/ubi8/python-38:1` (EOL) | same hardened config as Clean |
+| **Dirty** | Has real CVEs, but well-behaved config | `gcr.io/distroless/python3-debian12:debug-nonroot` | same hardened config as Clean |
 | **Blue** | Violates a policy doing what it's *supposed* to do (noise) | same clean image as above | `privileged: true`, mimics the common Elasticsearch/ECK `vm.max_map_count` sysctl-tuning init container pattern |
-| **Red** | Violates a policy because it *misbehaves* (true positive) | `registry.access.redhat.com/ubi8/nodejs-14:1` (EOL, real CVEs) | `privileged: true` with **no** legitimate justification |
+| **Red** | Violates a policy because it *misbehaves* (true positive) | `gcr.io/distroless/nodejs18-debian12:debug-nonroot` (real CVEs) | `privileged: true` with **no** legitimate justification |
 
 All four types are built from public images plus plain Kubernetes YAML
-(`securityContext`, image tag choice) - no custom image builds required. Each
-image is deliberately chosen to keep hygiene noise (root user, package
-managers, stale tags) out of the way of the actual story wherever possible;
-Dirty/Red's images still carry a "Red Hat Package Manager in Image" finding
-alongside their real CVEs, since removing that would mean giving up the EOL
-image that provides the CVEs in the first place. Each `Deployment`'s `main`
-container is a `registry.k8s.io/pause:3.9` keep-alive placeholder; it's not
-part of the story, just there so the pod has a running main container
-alongside the init container being tested (its own one accepted finding is
-"90-Day Image Age").
+(`securityContext`, image tag choice) - no custom image builds required.
+Every image is a Google distroless variant: non-root by default, no package
+manager at all (so no "package manager in image" findings for any of the
+four), and Dirty/Red's language-runtime variants still carry real, fixable
+Critical/Important CVEs in their bundled runtime and glibc. Each
+`Deployment`'s `main` container is a `registry.k8s.io/pause:3.9` keep-alive
+placeholder; it's not part of the story, just there so the pod has a running
+main container alongside the init container being tested. The one
+irreducible finding across all four apps is "90-Day Image Age" - `pause` is
+rarely rebuilt, and distroless images omit build timestamps entirely for
+reproducible builds (shows as a 1970/0001 date, which is expected, not a
+bug).
 
 ## What's in here
 

@@ -1,13 +1,13 @@
-# DIRTY: init container image is old/EOL and carries real, known, fixable
-# CVEs (registry.access.redhat.com/ubi8/python-38:1 - EOL S2I runtime image,
-# hundreds of fixable Important-severity CVEs at time of writing), but the
+# DIRTY: init container image carries real, known, fixable CVEs
+# (gcr.io/distroless/python3-debian12:debug-nonroot - Critical/Important
+# CVEs in its bundled Python runtime and glibc at time of writing), but the
 # deployment spec itself is well-behaved (non-root, no privilege escalation,
-# all capabilities dropped). This S2I image also bakes in a non-root user
-# (1001) despite its age, so unlike a generic EOL base image it won't add a
-# root-user finding on top of the CVE findings. Should show up clearly in
-# Vulnerability Management attributed to the init container, but should NOT
-# trigger the Privileged-Container-style Build/Deploy policy used for
-# Blue/Red.
+# all capabilities dropped). Distroless images have no package manager at
+# all, and this one bakes in a non-root user (65532), so the only findings
+# are the CVEs themselves - no root-user or package-manager noise on top.
+# Should show up clearly in Vulnerability Management attributed to the init
+# container, but should NOT trigger the Privileged-Container-style
+# Build/Deploy policy used for Blue/Red.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -32,8 +32,8 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: dirty-init
-          image: registry.access.redhat.com/ubi8/python-38:1
-          command: ["sh", "-c", "echo 'dirty-init: known CVEs, well-behaved config'; exit 0"]
+          image: gcr.io/distroless/python3-debian12:debug-nonroot
+          command: ["/busybox/sh", "-c", "echo 'dirty-init: known CVEs, well-behaved config'; exit 0"]
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false

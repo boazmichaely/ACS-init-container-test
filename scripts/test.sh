@@ -48,8 +48,8 @@ if [[ -n "$BLUE_ID" ]]; then
 fi
 
 section "2. Init container image scanning (Clean vs Dirty)"
-log "roxctl image scan against the Dirty init image (registry.access.redhat.com/ubi8/python-38:1):"
-roxctl image scan -i registry.access.redhat.com/ubi8/python-38:1 -o json --compact-output 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get("result",d).get("summary"), indent=2))' | tee -a "$REPORT"
+log "roxctl image scan against the Dirty init image (gcr.io/distroless/python3-debian12:debug-nonroot):"
+roxctl image scan -i gcr.io/distroless/python3-debian12:debug-nonroot -o json --compact-output 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get("result",d).get("summary"), indent=2))' | tee -a "$REPORT"
 log ""
 log "roxctl image scan against the Clean init image (gcr.io/distroless/base-debian12:debug-nonroot):"
 roxctl image scan -i gcr.io/distroless/base-debian12:debug-nonroot -o json --compact-output 2>/dev/null | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps(d.get("result",d).get("summary"), indent=2))' | tee -a "$REPORT"
@@ -70,7 +70,7 @@ log "Custom 'EAP-Init-Test: Privileged Container' fired on red-app: ${RED_HIT}"
 
 section "4. Pipeline (roxctl image check against Dirty)"
 log "roxctl image check against the Dirty init image (expect Important+ CVE findings, non-zero exit if a BUILD-breaking policy matches):"
-roxctl image check -i registry.access.redhat.com/ubi8/python-38:1 -o table --categories "Vulnerability Management" 2>&1 | tail -n 5 | tee -a "$REPORT"
+roxctl image check -i gcr.io/distroless/python3-debian12:debug-nonroot -o table --categories "Vulnerability Management" 2>&1 | tail -n 5 | tee -a "$REPORT"
 IMAGE_CHECK_EXIT="${PIPESTATUS[0]}"
 log "(roxctl image check exit code: ${IMAGE_CHECK_EXIT} - non-zero means at least one BUILD-breaking policy matched, i.e. the pipeline would fail the build)"
 
