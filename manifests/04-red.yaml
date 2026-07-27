@@ -1,11 +1,13 @@
 # RED: init container violates a Build/Deploy policy because it MISBEHAVES.
-# Image is old/EOL (docker.io/library/alpine:3.9, unpatched since ~2020,
-# real known CVEs) AND is configured privileged: true with no legitimate
-# reason (unlike Blue, there is no operational task here that requires it -
-# it is just an unnecessarily over-privileged, unpatched container). This is
-# the "true positive" case: both the image-CVE-based policy and the
-# configuration-based policy should fire, and both firings should be
-# considered actionable.
+# Image is old/EOL (registry.access.redhat.com/ubi8/nodejs-14:1, unpatched
+# since 2023, hundreds of real fixable CVEs incl. Important-severity) AND is
+# configured privileged: true with no legitimate reason (unlike Blue, there
+# is no operational task here that requires it - it is just an unnecessarily
+# over-privileged, unpatched container). This S2I image bakes in a non-root
+# user (1001) despite its age, so it won't add a root-user finding on top of
+# the CVE/privileged findings. This is the "true positive" case: both the
+# image-CVE-based policy and the configuration-based policy should fire, and
+# both firings should be considered actionable.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -30,7 +32,7 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: red-init
-          image: docker.io/library/alpine:3.9
+          image: registry.access.redhat.com/ubi8/nodejs-14:1
           command:
             - sh
             - -c
@@ -39,6 +41,9 @@ spec:
               exit 0
           securityContext:
             privileged: true
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
       containers:
         - name: main
           # registry.k8s.io/pause is just a keep-alive placeholder, not part

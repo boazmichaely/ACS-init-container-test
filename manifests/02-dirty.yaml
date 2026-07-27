@@ -1,10 +1,13 @@
-# DIRTY: init container image is old/EOL and carries real, known CVEs
-# (registry.access.redhat.com/ubi8/ubi-minimal:8.4 - superseded, ~380
-# vulnerabilities incl. Important-severity at time of writing), but the
+# DIRTY: init container image is old/EOL and carries real, known, fixable
+# CVEs (registry.access.redhat.com/ubi8/python-38:1 - EOL S2I runtime image,
+# hundreds of fixable Important-severity CVEs at time of writing), but the
 # deployment spec itself is well-behaved (non-root, no privilege escalation,
-# all capabilities dropped). Should show up clearly in Vulnerability
-# Management attributed to the init container, but should NOT trigger the
-# Privileged-Container-style Build/Deploy policy used for Blue/Red.
+# all capabilities dropped). This S2I image also bakes in a non-root user
+# (1001) despite its age, so unlike a generic EOL base image it won't add a
+# root-user finding on top of the CVE findings. Should show up clearly in
+# Vulnerability Management attributed to the init container, but should NOT
+# trigger the Privileged-Container-style Build/Deploy policy used for
+# Blue/Red.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -29,7 +32,7 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: dirty-init
-          image: registry.access.redhat.com/ubi8/ubi-minimal:8.4
+          image: registry.access.redhat.com/ubi8/python-38:1
           command: ["sh", "-c", "echo 'dirty-init: known CVEs, well-behaved config'; exit 0"]
           securityContext:
             runAsNonRoot: true
@@ -38,6 +41,9 @@ spec:
               drop: ["ALL"]
             seccompProfile:
               type: RuntimeDefault
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
       containers:
         - name: main
           # registry.k8s.io/pause is just a keep-alive placeholder, not part

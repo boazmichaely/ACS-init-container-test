@@ -31,9 +31,13 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: blue-init
-          image: registry.access.redhat.com/ubi9/ubi-micro:latest
+          # Google distroless "debug-nonroot" - see clean-app for why
+          # (non-root baked in, zero Critical/Important CVEs, no package
+          # manager). Keeps this deployment's only violations attributable
+          # to the "privileged" config below.
+          image: gcr.io/distroless/base-debian12:debug-nonroot
           command:
-            - sh
+            - /busybox/sh
             - -c
             - |
               echo 'blue-init: tuning vm.max_map_count (legitimate privileged use, mirrors Elasticsearch/ECK init container pattern)'
@@ -41,6 +45,9 @@ spec:
               exit 0
           securityContext:
             privileged: true
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
       containers:
         - name: main
           # registry.k8s.io/pause is just a keep-alive placeholder, not part

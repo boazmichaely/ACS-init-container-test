@@ -27,8 +27,12 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: clean-init
-          image: registry.access.redhat.com/ubi9/ubi-micro:latest
-          command: ["sh", "-c", "echo 'clean-init: no CVEs, no policy violations'; exit 0"]
+          # Google distroless "debug-nonroot": non-root user (65532) baked
+          # into the image, zero Critical/Important CVEs (just libc6 +
+          # libssl3), and no package manager at all - the busybox shell it
+          # ships covers the one-line demo command below.
+          image: gcr.io/distroless/base-debian12:debug-nonroot
+          command: ["/busybox/sh", "-c", "echo 'clean-init: no fixable CVEs, no policy violations'; exit 0"]
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
@@ -36,6 +40,9 @@ spec:
               drop: ["ALL"]
             seccompProfile:
               type: RuntimeDefault
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
       containers:
         - name: main
           # registry.k8s.io/pause is just a keep-alive placeholder so the
@@ -47,10 +54,9 @@ spec:
           # command override needed - its own entrypoint just blocks
           # forever. The one tradeoff: it is an old, rarely-rebuilt image,
           # so it will always show a "90-Day Image Age" finding - accepted
-          # deliberately, since every actively-maintained alternative we
-          # tried traded that one finding for a *different* one instead
-          # (Package Manager in Image, Fixable CVEs, etc.) - see
-          # docs/RESULTS-2026-07-27.md for the full comparison.
+          # deliberately, since every actively-maintained alternative traded
+          # that one finding for a different one instead (Package Manager
+          # in Image, Fixable CVEs, etc.).
           image: registry.k8s.io/pause:3.9
           securityContext:
             runAsNonRoot: true
