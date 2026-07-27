@@ -64,8 +64,11 @@ version under test:
   - `dirty-app` and `red-app` trigger the Fixable CVE policy.
   - `clean-app` and `blue-app` do **not** trigger the Fixable CVE policy -
     their init image has no fixable Critical/Important CVEs.
-- Enabling `FAIL_DEPLOYMENT_CREATE_ENFORCEMENT` on the privileged-container
-  policy and recreating the `red-app` pod blocks pod creation.
+- With `FAIL_DEPLOYMENT_CREATE_ENFORCEMENT` enabled on the privileged-container
+  policy, deleting `red-app` and re-applying its manifest from scratch gets
+  the `oc apply` itself rejected by the admission webhook - the same
+  experience a user would get trying to deploy a non-compliant workload for
+  the first time.
 
 `roxctl image scan`/`roxctl image check` run directly against an image
 (independent of any deployment) always returns accurate CVE data regardless

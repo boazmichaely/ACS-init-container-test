@@ -75,15 +75,33 @@ IMAGE_CHECK_EXIT="${PIPESTATUS[0]}"
 log "(roxctl image check exit code: ${IMAGE_CHECK_EXIT} - non-zero means at least one BUILD-breaking policy matched, i.e. the pipeline would fail the build)"
 
 section "5. Admission control (Red init container)"
-log "Temporarily enabling FAIL_DEPLOYMENT_CREATE_ENFORCEMENT on the custom privileged-container policy, then recreating the red-app pod..."
+log "Temporarily enabling FAIL_DEPLOYMENT_CREATE_ENFORCEMENT on the custom privileged-container policy, then deleting and redeploying red-app from scratch..."
 python3 scripts/acs_api.py set-enforcement "EAP-Init-Test: Privileged Container (Blue/Red)" --on | tee -a "$REPORT"
 sleep 10
-OLD_POD=$(oc get pod -n "${TEST_NAMESPACE}" -l app=red-app -o jsonpath='{.items[0].metadata.name}')
-oc delete pod -n "${TEST_NAMESPACE}" -l app=red-app >/dev/null
-sleep 10
-NEW_POD_STATUS=$(oc get pod -n "${TEST_NAMESPACE}" -l app=red-app -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "MISSING")
-log "Old pod: ${OLD_POD} -> new red-app pod phase after enforcement was enabled: ${NEW_POD_STATUS}"
+
+log "Deleting red-app entirely (Deployment + pods)..."
+oc delete deployment red-app -n "${TEST_NAMESPACE}" --wait=true >/dev/null
+
+log "Re-applying manifests/04-red.yaml with enforcement ON - expect this apply to be rejected by the admission webhook if enforcement reaches init containers:"
+APPLY_OUTPUT=$(oc apply -f manifests/04-red.yaml 2>&1)
+APPLY_EXIT=$?
+echo "$APPLY_OUTPUT" | tee -a "$REPORT"
+if [[ $APPLY_EXIT -ne 0 ]]; then
+  log ""
+  log "BLOCKED: 'oc apply' was rejected (exit code ${APPLY_EXIT}) - admission control stopped the deployment before it was created."
+else
+  log ""
+  log "NOT BLOCKED: 'oc apply' succeeded - the Deployment (and its privileged init container) was created despite enforcement being enabled."
+fi
+
 python3 scripts/acs_api.py set-enforcement "EAP-Init-Test: Privileged Container (Blue/Red)" --off | tee -a "$REPORT"
+
+if [[ $APPLY_EXIT -ne 0 ]]; then
+  log ""
+  log "Re-applying manifests/04-red.yaml now that enforcement is back off, to restore red-app..."
+  oc apply -f manifests/04-red.yaml | tee -a "$REPORT"
+fi
+oc rollout status deployment/red-app -n "${TEST_NAMESPACE}" --timeout=60s | tee -a "$REPORT"
 
 section "Summary"
 log "Full report saved to ${REPORT}"
