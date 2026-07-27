@@ -21,4 +21,4 @@ python3 scripts/acs_api.py delete-policy "EAP-Init-Test: Privileged Container (B
 python3 scripts/acs_api.py delete-policy "EAP-Init-Test: Fixable Important+ CVE (Dirty/Red)"
 
 echo ""
-echo "Cleanup complete. Remember to revoke the RHACS API token in Central once you're done using this repo (see docs/CREDENTIALS.md)."
+echo "Cleanup complete. Remember to revoke the RHACS API token in Central once you're done using this repo."

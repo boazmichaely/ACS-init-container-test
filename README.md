@@ -62,9 +62,7 @@ under test:
 - With enforcement enabled on the privileged-container policy, deleting
   `red-app` and re-applying its manifest gets the `oc apply` itself rejected
   by the admission webhook - the same experience a user would get trying to
-  deploy a non-compliant workload for the first time. See
-  [`docs/TESTING.md`](docs/TESTING.md) for the enforcement actions this
-  requires.
+  deploy a non-compliant workload for the first time.
 
 If any check above doesn't hold, that capability isn't yet supported on the
 Central/Sensor version under test. (You'll also see a `90-Day Image Age`
@@ -77,7 +75,6 @@ unrelated to init containers.)
 manifests/     Namespace + 4 Deployments (Clean/Dirty/Blue/Red init containers)
 policies/      2 custom RHACS Build/Deploy policies scoped to the test namespace
 scripts/       setup.sh, test.sh, cleanup.sh, acs_api.py, common.sh
-docs/          Credential log (no secret values) + testing notes
 .env.example   Config template - copy to .env (gitignored) or use env vars/prompts
 ```
 
@@ -88,7 +85,7 @@ docs/          Credential log (no secret values) + testing notes
 - `curl`, `python3` (no extra pip packages needed - stdlib only)
 - An RHACS API token (Central -> Platform Configuration -> Integrations ->
   Authentication Tokens) with the `Admin` role, so the scripts can create and
-  enable/disable enforcement on the demo policies.
+  enable/disable enforcement on the demo policies. Revoke it once you're done.
 
 ## Setup
 
@@ -99,8 +96,10 @@ cp .env.example .env
 ```
 
 Anything missing from `.env`/the environment is prompted for interactively
-(the token prompt is hidden input). **Nothing here reads a token from a
-command-line argument**, so it never ends up in shell history or `ps` output.
+(the token prompt is hidden input). Nothing here reads a token from a
+command-line argument, so it never ends up in shell history or `ps` output.
+No secret values, hostnames, or token identifiers are committed - `.env` is
+gitignored.
 
 See [Deployment plan](#deployment-plan) above for exactly what `setup.sh`
 creates. Once it's done, open Central and browse to the
@@ -133,9 +132,6 @@ exiting.
    webhook. Enforcement is turned back off afterward, and `red-app` is
    restored if the redeploy was blocked.
 
-See [`docs/TESTING.md`](docs/TESTING.md) for the enforcement-action detail
-behind step 3.
-
 ## Cleanup
 
 ```bash
@@ -146,9 +142,3 @@ Removes the namespace (and everything in it), the two custom policies, and
 the SCC grant. This repo never modifies any default/out-of-the-box RHACS
 policy - the two custom policies are clearly namespaced by name and by
 `scope.namespace`.
-
-## Secrets
-
-No secret values, hostnames, or token identifiers are committed. See
-[`docs/CREDENTIALS.md`](docs/CREDENTIALS.md) for what token you need and how
-it's handled. `.env` is gitignored from this repo's first commit.
