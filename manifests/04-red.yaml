@@ -47,20 +47,14 @@ spec:
             limits: {cpu: 100m, memory: 64Mi}
       containers:
         - name: main
-          # registry.k8s.io/pause is just a keep-alive placeholder, not part
-          # of the init container story - see clean-app for why it was
-          # chosen (pinned tag, non-root baked-in user, no CVEs/package
-          # manager; the one accepted tradeoff is "90-Day Image Age").
-          # Its baked-in user (65535) already satisfies runAsNonRoot without
-          # needing an explicit runAsUser override.
-          #
-          # Note: red-init's pod may never actually be admitted to run on a
-          # cluster that hasn't granted the "privileged" SCC to this
-          # namespace's default SA - that's fine and expected. RHACS
-          # evaluates this Deployment's spec directly (Sensor watches the
-          # Deployment/ReplicaSet object, not the Pod), so image scanning
-          # and policy evaluation work whether or not the pod ever runs.
-          image: registry.k8s.io/pause:3.9
+          # Deliberately NO livenessProbe - the only main container in this
+          # demo that lacks one. The Missing-Liveness-Probe policy (inform
+          # only, scoped to container name "main" so init containers are
+          # excluded) should fire here and only here. Pod may stay Pending
+          # without the privileged SCC for red-init - that's fine; RHACS
+          # evaluates the Deployment spec either way.
+          image: gcr.io/distroless/base-debian12:debug-nonroot
+          command: ["/busybox/sh", "-c", "exec /busybox/sleep infinity"]
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false

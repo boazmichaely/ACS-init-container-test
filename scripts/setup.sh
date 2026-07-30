@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Applies the Clean/Dirty/Blue/Red demo workloads and creates the two demo
+# Applies the Clean/Dirty/Blue/Red demo workloads and creates the three demo
 # Build/Deploy policies in Central. Safe to re-run. No cluster-admin needed:
 # RHACS evaluates a Deployment's spec directly, so blue-app/red-app's
 # privileged init container triggers policy evaluation whether or not a
@@ -34,6 +34,7 @@ echo ""
 echo "Creating demo policies in Central..."
 python3 scripts/acs_api.py upsert-policy policies/privileged-init-container.json
 python3 scripts/acs_api.py upsert-policy policies/fixable-important-cve.json
+python3 scripts/acs_api.py upsert-policy policies/missing-liveness-probe.json
 
 echo ""
 echo "Setup complete. Open Central to explore the ${TEST_NAMESPACE} namespace,"

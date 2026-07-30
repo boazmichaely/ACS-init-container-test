@@ -45,19 +45,21 @@ spec:
             limits: {cpu: 100m, memory: 64Mi}
       containers:
         - name: main
-          # registry.k8s.io/pause is just a keep-alive placeholder so the
-          # Deployment has something to run - it is not part of the init
-          # container story. Chosen deliberately: pinned version tag (not
-          # "latest"), non-root user baked into the image (65535:65535),
-          # zero scannable components/CVEs, and no package manager, shell
-          # utilities, etc. to trip any other image-hygiene policy. No
-          # command override needed - its own entrypoint just blocks
-          # forever. The one tradeoff: it is an old, rarely-rebuilt image,
-          # so it will always show a "90-Day Image Age" finding - accepted
-          # deliberately, since every actively-maintained alternative traded
-          # that one finding for a different one instead (Package Manager
-          # in Image, Fixable CVEs, etc.).
-          image: registry.k8s.io/pause:3.9
+          # Placeholder app container (not the init-container story). Same
+          # distroless debug-nonroot image as clean-init: non-root, no
+          # package manager, no Critical/Important CVEs, and ships busybox
+          # so we can define a livenessProbe that actually succeeds
+          # (pause:3.9 cannot - it has no /bin/true). Used by the
+          # Missing-Liveness-Probe demo policy: this main HAS a probe, so
+          # that policy stays quiet here; red-app's main deliberately does
+          # not.
+          image: gcr.io/distroless/base-debian12:debug-nonroot
+          command: ["/busybox/sh", "-c", "exec /busybox/sleep infinity"]
+          livenessProbe:
+            exec:
+              command: ["/busybox/true"]
+            initialDelaySeconds: 5
+            periodSeconds: 30
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false

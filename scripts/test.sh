@@ -88,7 +88,7 @@ if [[ -n "$BLUE_ID" ]]; then
   log "(Look for both 'main' and 'blue-init' here - that confirms Sensor is reporting init containers to Central.)"
 fi
 
-section "2. Policy behavior (Blue / Red)"
+section "2. Policy behavior (Blue / Red / Liveness)"
 log "Live violations for this namespace (from /v1/alerts):"
 python3 scripts/acs_api.py violations --namespace "${TEST_NAMESPACE}" | tee -a "$REPORT"
 log ""
@@ -99,6 +99,34 @@ BLUE_HIT=$(python3 scripts/acs_api.py violations --namespace "${TEST_NAMESPACE}"
 RED_HIT=$(python3 scripts/acs_api.py violations --namespace "${TEST_NAMESPACE}" | python3 -c 'import json,sys; a=json.load(sys.stdin); print("yes" if any(x["deployment"]=="red-app" and "Privileged" in x["policy"] for x in a) else "no")')
 log "Custom 'EAP-Init-Test: Privileged Container' fired on blue-app: ${BLUE_HIT}"
 log "Custom 'EAP-Init-Test: Privileged Container' fired on red-app: ${RED_HIT}"
+log ""
+# Liveness policy is inform-only, scoped to container name "main" (init
+# containers excluded). Expect: red-app yes, blue-app no, no *-init attribution.
+python3 - <<'PY' | tee -a "$REPORT"
+import json, os, ssl, urllib.request, urllib.parse
+ep, tok = os.environ["ROX_CENTRAL_ENDPOINT"], os.environ["ROX_API_TOKEN"]
+ctx = ssl.create_default_context(); ctx.check_hostname=False; ctx.verify_mode=ssl.CERT_NONE
+ns = os.environ["TEST_NAMESPACE"]
+q = urllib.parse.urlencode({"query": f"Namespace:{ns}+Violation State:ACTIVE", "pagination.limit": "200"})
+req = urllib.request.Request(f"https://{ep}/v1/alerts?{q}", headers={"Authorization": f"Bearer {tok}"})
+alerts = json.load(urllib.request.urlopen(req, context=ctx)).get("alerts", [])
+live = [a for a in alerts if "Liveness" in (a.get("policy") or {}).get("name", "")]
+by_dep = {}
+for a in live:
+  dep = (a.get("deployment") or {}).get("name")
+  full_req = urllib.request.Request(f"https://{ep}/v1/alerts/{a['id']}", headers={"Authorization": f"Bearer {tok}"})
+  full = json.load(urllib.request.urlopen(full_req, context=ctx))
+  msgs = [v.get("message","") for v in full.get("violations", [])]
+  by_dep.setdefault(dep, []).extend(msgs)
+print(f"Custom 'EAP-Init-Test: Missing Liveness Probe' fired on red-app: {'yes' if 'red-app' in by_dep else 'no'} (expect yes)")
+print(f"Custom 'EAP-Init-Test: Missing Liveness Probe' fired on blue-app: {'yes' if 'blue-app' in by_dep else 'no'} (expect no - main has a probe)")
+init_msgs = [m for msgs in by_dep.values() for m in msgs if "-init" in m]
+print(f"Custom 'EAP-Init-Test: Missing Liveness Probe' attributed to an init container: {'yes' if init_msgs else 'no'} (expect no - policy excludes init)")
+for dep, msgs in sorted(by_dep.items()):
+  for m in msgs:
+    print(f"  {dep}: {m}")
+PY
+
 
 section "3. Admission control (Red init container)"
 log "Enabling enforcement on the custom privileged-container policy..."

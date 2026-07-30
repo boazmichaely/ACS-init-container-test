@@ -1,0 +1,36 @@
+{
+  "name": "EAP-Init-Test: Missing Liveness Probe (main only)",
+  "description": "Demo policy for the RHACS 5.0 EAP init-container test workflow. Fires when the main container in acs-init-container-test has no liveness probe. Init containers are excluded (Container Name = main) because Kubernetes forbids livenessProbe on init containers - without that exclusion every init would be a false positive. Only red-app should match: clean/dirty/blue define a probe on main; red deliberately does not. Inform only (no enforcement).",
+  "rationale": "Long-running application containers should expose a liveness probe so the kubelet can restart unhealthy processes. Init containers run to completion and must not define one.",
+  "remediation": "Add a livenessProbe to the main/application container. Do not add one to init containers - Kubernetes rejects that. Keep this policy scoped to application containers (e.g. Container Name = main, or a future Container Type exclusion).",
+  "disabled": false,
+  "categories": ["DevOps Best Practices"],
+  "lifecycleStages": ["DEPLOY"],
+  "eventSource": "NOT_APPLICABLE",
+  "severity": "LOW_SEVERITY",
+  "enforcementActions": [],
+  "scope": [
+    {
+      "namespace": "acs-init-container-test"
+    }
+  ],
+  "policySections": [
+    {
+      "sectionName": "missing-liveness-on-main",
+      "policyGroups": [
+        {
+          "fieldName": "Liveness Probe Defined",
+          "booleanOperator": "OR",
+          "negate": false,
+          "values": [{"value": "false"}]
+        },
+        {
+          "fieldName": "Container Name",
+          "booleanOperator": "OR",
+          "negate": false,
+          "values": [{"value": "main"}]
+        }
+      ]
+    }
+  ]
+}

@@ -46,11 +46,17 @@ spec:
             limits: {cpu: 100m, memory: 64Mi}
       containers:
         - name: main
-          # registry.k8s.io/pause is just a keep-alive placeholder, not part
-          # of the init container story - see clean-app for why it was
-          # chosen (pinned tag, non-root baked-in user, no CVEs/package
-          # manager; the one accepted tradeoff is "90-Day Image Age").
-          image: registry.k8s.io/pause:3.9
+          # Placeholder app container - see clean-app. Has a working
+          # livenessProbe so the Missing-Liveness-Probe policy (scoped to
+          # main containers) stays quiet here; CVE findings stay on
+          # dirty-init.
+          image: gcr.io/distroless/base-debian12:debug-nonroot
+          command: ["/busybox/sh", "-c", "exec /busybox/sleep infinity"]
+          livenessProbe:
+            exec:
+              command: ["/busybox/true"]
+            initialDelaySeconds: 5
+            periodSeconds: 30
           securityContext:
             runAsNonRoot: true
             allowPrivilegeEscalation: false
