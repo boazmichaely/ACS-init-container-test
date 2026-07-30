@@ -122,11 +122,9 @@ cp .env.example .env
 ./scripts/setup.sh
 ```
 
-Anything missing from `.env`/the environment is prompted for interactively.
-Nothing here reads a token from a command-line argument, so it never ends up
-in shell history or `ps` output.
-No secret values, hostnames, or token identifiers are committed - `.env` is
-gitignored.
+Anything missing from `.env`/the environment is prompted for interactively
+(input is not masked). No secret values, hostnames, or token identifiers are
+committed - `.env` is gitignored.
 
 Every script (`setup.sh`, `test.sh`, `cleanup.sh`) prints the OCP cluster and
 ACS Central it resolved and asks you to confirm before doing anything - so a
