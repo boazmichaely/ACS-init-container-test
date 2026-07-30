@@ -11,6 +11,24 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 
+# Accepts a bare host, host:port, or a full URL (any scheme, path, query,
+# trailing slash) and returns just the host[:port] the rest of the scripts
+# use - so pasting e.g. "https://central.example.com/main/dashboard" works
+# just as well as "central.example.com".
+normalize_central_endpoint() {
+  local v="$1"
+  v="${v#"${v%%[![:space:]]*}"}"
+  v="${v%"${v##*[![:space:]]}"}"
+  case "$v" in
+    [Hh][Tt][Tt][Pp][Ss]://*) v="${v#*://}" ;;
+    [Hh][Tt][Tt][Pp]://*) v="${v#*://}" ;;
+  esac
+  v="${v%%/*}"
+  v="${v%%\?*}"
+  v="${v%%#*}"
+  printf '%s' "$v"
+}
+
 # 1. Load .env if it exists (never committed - see .gitignore).
 if [[ -f "${REPO_ROOT}/.env" ]]; then
   set -a
@@ -18,10 +36,12 @@ if [[ -f "${REPO_ROOT}/.env" ]]; then
   source "${REPO_ROOT}/.env"
   set +a
 fi
+ROX_CENTRAL_ENDPOINT="$(normalize_central_endpoint "${ROX_CENTRAL_ENDPOINT:-}")"
 
 # 2. Fall back to defaults / interactive prompts for anything missing.
 if [[ -z "${ROX_CENTRAL_ENDPOINT:-}" ]]; then
-  read -r -p "RHACS Central endpoint (e.g. acs-xxxx.acs.rhcloud.com, no https://): " ROX_CENTRAL_ENDPOINT
+  read -r -p "RHACS Central endpoint (bare host or full URL, e.g. acs-xxxx.acs.rhcloud.com or https://central.example.com/main): " ROX_CENTRAL_ENDPOINT
+  ROX_CENTRAL_ENDPOINT="$(normalize_central_endpoint "${ROX_CENTRAL_ENDPOINT}")"
 fi
 
 if [[ -z "${ROX_API_TOKEN:-}" ]]; then
@@ -38,7 +58,7 @@ if [[ -z "${ROX_CENTRAL_ENDPOINT}" || -z "${ROX_API_TOKEN}" ]]; then
 fi
 
 export ROX_CENTRAL_ENDPOINT ROX_API_TOKEN TEST_NAMESPACE
-export ROX_ENDPOINT="${ROX_CENTRAL_ENDPOINT}:443"
+[[ "${ROX_CENTRAL_ENDPOINT}" == *:* ]] && export ROX_ENDPOINT="${ROX_CENTRAL_ENDPOINT}" || export ROX_ENDPOINT="${ROX_CENTRAL_ENDPOINT}:443"
 
 acs_curl() {
   # acs_curl <path> [curl-args...]  - talks to the Central REST API.
@@ -99,10 +119,11 @@ except Exception:
     break
   fi
 
-  read -r -p "New RHACS Central endpoint (no https://): " ROX_CENTRAL_ENDPOINT
+  read -r -p "New RHACS Central endpoint (bare host or full URL): " ROX_CENTRAL_ENDPOINT
+  ROX_CENTRAL_ENDPOINT="$(normalize_central_endpoint "${ROX_CENTRAL_ENDPOINT}")"
   read -r -p "New RHACS API token: " ROX_API_TOKEN
   export ROX_CENTRAL_ENDPOINT ROX_API_TOKEN
-  export ROX_ENDPOINT="${ROX_CENTRAL_ENDPOINT}:443"
+  [[ "${ROX_CENTRAL_ENDPOINT}" == *:* ]] && export ROX_ENDPOINT="${ROX_CENTRAL_ENDPOINT}" || export ROX_ENDPOINT="${ROX_CENTRAL_ENDPOINT}:443"
   CREDS_CHANGED=true
 done
 

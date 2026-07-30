@@ -124,7 +124,13 @@ if [[ $APPLY_EXIT -ne 0 ]]; then
 else
   result "NOT BLOCKED - the deployment was created despite enforcement being enabled." bad
 fi
-oc rollout status deployment/red-app -n "${TEST_NAMESPACE}" --timeout=60s | tee -a "$REPORT"
+
+# No rollout-status wait here: red-app's privileged init container stays
+# Pending without the 'privileged' SCC (expected - see manifests/04-red.yaml),
+# so waiting for a rollout to "complete" would just stall on a known outcome.
+log ""
+log "Deployment status:"
+oc get deployments -n "${TEST_NAMESPACE}" -l acs-eap-test=init-container | tee -a "$REPORT"
 
 section "Summary"
 log "Full report saved to ${REPORT}"
