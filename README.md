@@ -122,9 +122,9 @@ cp .env.example .env
 ./scripts/setup.sh
 ```
 
-Anything missing from `.env`/the environment is prompted for interactively
-(the token prompt is hidden input). Nothing here reads a token from a
-command-line argument, so it never ends up in shell history or `ps` output.
+Anything missing from `.env`/the environment is prompted for interactively.
+Nothing here reads a token from a command-line argument, so it never ends up
+in shell history or `ps` output.
 No secret values, hostnames, or token identifiers are committed - `.env` is
 gitignored.
 

@@ -25,8 +25,7 @@ if [[ -z "${ROX_CENTRAL_ENDPOINT:-}" ]]; then
 fi
 
 if [[ -z "${ROX_API_TOKEN:-}" ]]; then
-  read -r -s -p "RHACS API token (input hidden): " ROX_API_TOKEN
-  echo
+  read -r -p "RHACS API token: " ROX_API_TOKEN
 fi
 
 if [[ -z "${TEST_NAMESPACE:-}" ]]; then
@@ -101,8 +100,7 @@ except Exception:
   fi
 
   read -r -p "New RHACS Central endpoint (no https://): " ROX_CENTRAL_ENDPOINT
-  read -r -s -p "New RHACS API token (input hidden): " ROX_API_TOKEN
-  echo
+  read -r -p "New RHACS API token: " ROX_API_TOKEN
   export ROX_CENTRAL_ENDPOINT ROX_API_TOKEN
   export ROX_ENDPOINT="${ROX_CENTRAL_ENDPOINT}:443"
   CREDS_CHANGED=true
