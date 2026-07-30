@@ -27,6 +27,10 @@ oc rollout status deployment/clean-app -n "${TEST_NAMESPACE}" --timeout=120s
 oc rollout status deployment/dirty-app -n "${TEST_NAMESPACE}" --timeout=120s
 
 echo ""
+echo "Deployment status:"
+oc get deployments -n "${TEST_NAMESPACE}" -l acs-eap-test=init-container
+
+echo ""
 echo "Creating demo policies in Central..."
 python3 scripts/acs_api.py upsert-policy policies/privileged-init-container.json
 python3 scripts/acs_api.py upsert-policy policies/fixable-important-cve.json
