@@ -128,6 +128,12 @@ command-line argument, so it never ends up in shell history or `ps` output.
 No secret values, hostnames, or token identifiers are committed - `.env` is
 gitignored.
 
+Every script (`setup.sh`, `test.sh`, `cleanup.sh`) prints the OCP cluster and
+ACS Central it resolved and asks you to confirm before doing anything - so a
+stale `.env` (e.g. after switching `oc login` to a different cluster without
+updating it) never gets used silently against the wrong environment. Answer
+`n` to enter a different Central endpoint/token on the spot.
+
 See [Deployment plan](#deployment-plan) above for exactly what `setup.sh`
 creates. Once it's done, open Central and browse to the
 `acs-init-container-test` namespace to explore the four deployments, their
