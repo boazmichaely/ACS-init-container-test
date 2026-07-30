@@ -33,14 +33,31 @@ namespace:
 - **2 custom Build/Deploy policies**, scoped to this namespace only (see
   below).
 
-`blue-app`/`red-app`'s init container declares `privileged: true` - that's
-the point, and it's enough on its own. RHACS evaluates the Deployment's spec
-directly, so image scanning, policy evaluation, and admission control all
-work whether or not those pods ever actually get admitted to run. No
-cluster-admin or SCC grant is needed to see the story play out; if you want
-those two pods to also reach `Running`, ask a cluster-admin to run
-`oc adm policy add-scc-to-user privileged -z default -n acs-init-container-test`
-- purely cosmetic, not required for anything below.
+### Why `blue-app`/`red-app` stay at `0/1`
+
+`blue-app`/`red-app`'s init container sets `securityContext.privileged:
+true`. That's a real, common pattern, not a contrived one: it's the same
+setting the Elastic Cloud on Kubernetes (ECK) operator's init container
+needs to raise `vm.max_map_count` before Elasticsearch starts. In
+production, a customer running that workload would have to grant their
+`default` service account the `privileged` SCC before OpenShift lets it run
+at all - that gate is OpenShift enforcing least-privilege by default, and
+RHACS has nothing to do with it.
+
+This repo never grants that SCC, so `blue-app`/`red-app` stay at `0/1`
+indefinitely - that's expected, not a failure. RHACS evaluates a
+Deployment's spec directly (Sensor doesn't need a live Pod to see it), so
+image scanning, policy evaluation, and admission control all work
+regardless. If you want those two pods to also reach `Running`, a
+cluster-admin can run:
+
+```bash
+oc adm policy add-scc-to-user privileged -z default -n acs-init-container-test
+```
+
+That's the identical command a customer would run for their own workload in
+production - it's optional here and doesn't change anything this repo
+demonstrates.
 
 ## Policies
 
