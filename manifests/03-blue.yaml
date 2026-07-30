@@ -55,8 +55,14 @@ spec:
           # chosen (pinned tag, non-root baked-in user, no CVEs/package
           # manager; the one accepted tradeoff is "90-Day Image Age").
           # Its baked-in user (65535) already satisfies runAsNonRoot without
-          # needing an explicit runAsUser override, even under the
-          # "privileged" SCC (RunAsAny) that blue-init above requires.
+          # needing an explicit runAsUser override.
+          #
+          # Note: blue-init's pod may never actually be admitted to run on a
+          # cluster that hasn't granted the "privileged" SCC to this
+          # namespace's default SA - that's fine and expected. RHACS
+          # evaluates this Deployment's spec directly (Sensor watches the
+          # Deployment/ReplicaSet object, not the Pod), so image scanning
+          # and policy evaluation work whether or not the pod ever runs.
           image: registry.k8s.io/pause:3.9
           securityContext:
             runAsNonRoot: true

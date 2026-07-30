@@ -30,10 +30,17 @@ namespace:
 - **4 Deployments** (`clean-app`, `dirty-app`, `blue-app`, `red-app`), each
   with one init container (per the table above) and one `main` placeholder
   container.
-- **`privileged` SCC** granted to the namespace's `default` service account -
-  required for `blue-app`/`red-app`'s privileged init container.
 - **2 custom Build/Deploy policies**, scoped to this namespace only (see
   below).
+
+`blue-app`/`red-app`'s init container declares `privileged: true` - that's
+the point, and it's enough on its own. RHACS evaluates the Deployment's spec
+directly, so image scanning, policy evaluation, and admission control all
+work whether or not those pods ever actually get admitted to run. No
+cluster-admin or SCC grant is needed to see the story play out; if you want
+those two pods to also reach `Running`, ask a cluster-admin to run
+`oc adm policy add-scc-to-user privileged -z default -n acs-init-container-test`
+- purely cosmetic, not required for anything below.
 
 ## Policies
 
@@ -72,7 +79,7 @@ unrelated to init containers.)
 ## What's in here
 
 ```
-manifests/     Namespace + 4 Deployments (Clean/Dirty/Blue/Red init containers)
+manifests/     4 Deployments (Clean/Dirty/Blue/Red init containers)
 policies/      2 custom RHACS Build/Deploy policies scoped to the test namespace
 scripts/       setup.sh, test.sh, cleanup.sh, acs_api.py, common.sh
 .env.example   Config template - copy to .env (gitignored) or use env vars/prompts
@@ -86,6 +93,9 @@ scripts/       setup.sh, test.sh, cleanup.sh, acs_api.py, common.sh
 - An RHACS API token (Central -> Platform Configuration -> Integrations ->
   Authentication Tokens) with the `Admin` role, so the scripts can create and
   enable/disable enforcement on the demo policies. Revoke it once you're done.
+
+No cluster-admin needed - `./scripts/setup.sh` only creates a project
+(self-service) and applies plain Deployment YAML.
 
 ## Setup
 
@@ -138,7 +148,6 @@ exiting.
 ./scripts/cleanup.sh
 ```
 
-Removes the namespace (and everything in it), the two custom policies, and
-the SCC grant. This repo never modifies any default/out-of-the-box RHACS
-policy - the two custom policies are clearly namespaced by name and by
-`scope.namespace`.
+Removes the namespace (and everything in it) and the two custom policies.
+This repo never modifies any default/out-of-the-box RHACS policy - the two
+custom policies are clearly namespaced by name and by `scope.namespace`.
