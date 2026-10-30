@@ -97,11 +97,11 @@ roxctl deployment check -f manifests/04-red.yaml -o table 2>&1 | tee -a "$REPORT
 log ""
 BLUE_HIT=$(python3 scripts/acs_api.py violations --namespace "${TEST_NAMESPACE}" | python3 -c 'import json,sys; a=json.load(sys.stdin); print("yes" if any(x["deployment"]=="blue-app" and "Privileged" in x["policy"] for x in a) else "no")')
 RED_HIT=$(python3 scripts/acs_api.py violations --namespace "${TEST_NAMESPACE}" | python3 -c 'import json,sys; a=json.load(sys.stdin); print("yes" if any(x["deployment"]=="red-app" and "Privileged" in x["policy"] for x in a) else "no")')
-log "Custom 'EAP-Init-Test: Privileged Container' fired on blue-app: ${BLUE_HIT}"
-log "Custom 'EAP-Init-Test: Privileged Container' fired on red-app: ${RED_HIT}"
+log "Custom 'DEMO-Init-Test: Privileged Container' fired on blue-app: ${BLUE_HIT}"
+log "Custom 'DEMO-Init-Test: Privileged Container' fired on red-app: ${RED_HIT}"
 log ""
-# Liveness policy is inform-only, scoped to container name "main" (init
-# containers excluded). Expect: red-app yes, blue-app no, no *-init attribution.
+# Liveness policy is inform-only with Skip init containers (evaluationFilter).
+# Expect: red-app yes, blue-app no, no *-init attribution.
 python3 - <<'PY' | tee -a "$REPORT"
 import json, os, ssl, urllib.request, urllib.parse
 ep, tok = os.environ["ROX_CENTRAL_ENDPOINT"], os.environ["ROX_API_TOKEN"]
@@ -118,10 +118,10 @@ for a in live:
   full = json.load(urllib.request.urlopen(full_req, context=ctx))
   msgs = [v.get("message","") for v in full.get("violations", [])]
   by_dep.setdefault(dep, []).extend(msgs)
-print(f"Custom 'EAP-Init-Test: Missing Liveness Probe' fired on red-app: {'yes' if 'red-app' in by_dep else 'no'} (expect yes)")
-print(f"Custom 'EAP-Init-Test: Missing Liveness Probe' fired on blue-app: {'yes' if 'blue-app' in by_dep else 'no'} (expect no - main has a probe)")
+print(f"Custom 'DEMO-Init-Test: Missing Liveness Probe' fired on red-app: {'yes' if 'red-app' in by_dep else 'no'} (expect yes)")
+print(f"Custom 'DEMO-Init-Test: Missing Liveness Probe' fired on blue-app: {'yes' if 'blue-app' in by_dep else 'no'} (expect no - main has a probe)")
 init_msgs = [m for msgs in by_dep.values() for m in msgs if "-init" in m]
-print(f"Custom 'EAP-Init-Test: Missing Liveness Probe' attributed to an init container: {'yes' if init_msgs else 'no'} (expect no - policy excludes init)")
+print(f"Custom 'DEMO-Init-Test: Missing Liveness Probe' attributed to an init container: {'yes' if init_msgs else 'no'} (expect no - policy excludes init)")
 for dep, msgs in sorted(by_dep.items()):
   for m in msgs:
     print(f"  {dep}: {m}")
@@ -130,7 +130,7 @@ PY
 
 section "3. Admission control (Red init container)"
 log "Enabling enforcement on the custom privileged-container policy..."
-python3 scripts/acs_api.py set-enforcement "EAP-Init-Test: Privileged Container (Blue/Red)" --on | tee -a "$REPORT"
+python3 scripts/acs_api.py set-enforcement "DEMO-Init-Test: Privileged Container (Blue/Red)" --on | tee -a "$REPORT"
 sleep 15  # allow the setting to propagate from Central to the admission controller
 
 log ""
@@ -142,7 +142,7 @@ log "Redeploying red-app - expect this to be rejected by the admission webhook:"
 oc apply -f manifests/04-red.yaml 2>&1 | tee -a "$REPORT"
 APPLY_EXIT="${PIPESTATUS[0]}"
 
-python3 scripts/acs_api.py set-enforcement "EAP-Init-Test: Privileged Container (Blue/Red)" --off | tee -a "$REPORT"
+python3 scripts/acs_api.py set-enforcement "DEMO-Init-Test: Privileged Container (Blue/Red)" --off | tee -a "$REPORT"
 
 log ""
 if [[ $APPLY_EXIT -ne 0 ]]; then

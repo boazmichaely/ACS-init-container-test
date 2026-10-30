@@ -14,9 +14,9 @@ echo "Deleting namespace ${TEST_NAMESPACE} (and everything in it)..."
 oc delete project "${TEST_NAMESPACE}" --ignore-not-found=true
 
 echo "Deleting custom demo policies from Central..."
-python3 scripts/acs_api.py delete-policy "EAP-Init-Test: Privileged Container (Blue/Red)"
-python3 scripts/acs_api.py delete-policy "EAP-Init-Test: Fixable Important+ CVE (Dirty/Red)"
-python3 scripts/acs_api.py delete-policy "EAP-Init-Test: Missing Liveness Probe (main only)"
+python3 scripts/acs_api.py delete-policy "DEMO-Init-Test: Privileged Container (Blue/Red)"
+python3 scripts/acs_api.py delete-policy "DEMO-Init-Test: Fixable Important+ CVE (Dirty/Red)"
+python3 scripts/acs_api.py delete-policy "DEMO-Init-Test: Missing Liveness Probe (main only)"
 
 echo ""
 echo "Cleanup complete. Remember to revoke the RHACS API token in Central once you're done using this repo."

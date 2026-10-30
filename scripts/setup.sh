@@ -13,7 +13,7 @@ cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.."
 source scripts/common.sh
 
 echo "Creating namespace ${TEST_NAMESPACE}..."
-oc get namespace "${TEST_NAMESPACE}" >/dev/null 2>&1 || oc new-project "${TEST_NAMESPACE}" --display-name="ACS init-container EAP test"
+oc get namespace "${TEST_NAMESPACE}" >/dev/null 2>&1 || oc new-project "${TEST_NAMESPACE}" --display-name="ACS init-container demo"
 
 echo ""
 echo "Applying workloads..."
