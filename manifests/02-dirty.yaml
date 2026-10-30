@@ -47,9 +47,8 @@ spec:
       containers:
         - name: main
           # Placeholder app container - see clean-app. Has a working
-          # livenessProbe so the Missing-Liveness-Probe policy (scoped to
-          # main containers) stays quiet here; CVE findings stay on
-          # dirty-init.
+          # livenessProbe so the Missing-Liveness-Probe policy (Skip init
+          # containers) stays quiet here; CVE findings stay on dirty-init.
           image: gcr.io/distroless/base-debian12:debug-nonroot
           command: ["/busybox/sh", "-c", "exec /busybox/sleep infinity"]
           livenessProbe:

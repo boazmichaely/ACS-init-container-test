@@ -62,20 +62,20 @@ demonstrates.
 
 ## Policies
 
-- **`EAP-Init-Test: Privileged Container (Blue/Red)`** - fires on any
+- **`DEMO-Init-Test: Privileged Container (Blue/Red)`** - fires on any
   privileged container, main or init, in this namespace. Validates that
   Build/Deploy policy evaluation reaches init containers, and attributes the
   violation to the specific init container by name.
-- **`EAP-Init-Test: Fixable Important+ CVE (Dirty/Red)`** - fires on any
+- **`DEMO-Init-Test: Fixable Important+ CVE (Dirty/Red)`** - fires on any
   container image, main or init, in this namespace with a fixable CVE at
   CVSS >= 7. Validates that vulnerability scanning attributes CVE findings
   to init containers specifically.
-- **`EAP-Init-Test: Missing Liveness Probe (main only)`** - fires when
-  container `main` has no liveness probe. Inform only (no enforcement).
-  Init containers are excluded via `Container Name = main` (Kubernetes
-  forbids `livenessProbe` on init containers, so evaluating them would be
-  pure noise). Only `red-app` should match; `blue-app` has a probe on main
-  and stays quiet.
+- **`DEMO-Init-Test: Missing Liveness Probe (main only)`** - fires when a
+  regular container has no liveness probe. Inform only (no enforcement).
+  Init containers are excluded via **Skip init containers**
+  (`evaluationFilter.skipContainerTypes: INIT`) because Kubernetes forbids
+  `livenessProbe` on init containers. Only `red-app` should match;
+  `blue-app` has a probe on main and stays quiet.
 
 ## Expected results
 

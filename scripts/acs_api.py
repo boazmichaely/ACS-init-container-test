@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Thin RHACS Central REST API helper for the init-container EAP test workflow.
+Thin RHACS Central REST API helper for the init-container demo workflow.
 
 Reads ROX_CENTRAL_ENDPOINT and ROX_API_TOKEN from the environment only
 (never from argv), so the token never shows up in `ps` output or shell

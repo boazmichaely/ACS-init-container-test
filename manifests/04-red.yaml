@@ -49,10 +49,9 @@ spec:
         - name: main
           # Deliberately NO livenessProbe - the only main container in this
           # demo that lacks one. The Missing-Liveness-Probe policy (inform
-          # only, scoped to container name "main" so init containers are
-          # excluded) should fire here and only here. Pod may stay Pending
-          # without the privileged SCC for red-init - that's fine; RHACS
-          # evaluates the Deployment spec either way.
+          # only, Skip init containers) should fire here and only here. Pod
+          # may stay Pending without the privileged SCC for red-init - that's
+          # fine; RHACS evaluates the Deployment spec either way.
           image: gcr.io/distroless/base-debian12:debug-nonroot
           command: ["/busybox/sh", "-c", "exec /busybox/sleep infinity"]
           securityContext:
